@@ -24,6 +24,8 @@ env/
 
 # Node
 dist/
+build/
+.next/
 node_modules/
 npm-debug.log*
 yarn-debug.log*
