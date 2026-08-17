@@ -1,0 +1,11 @@
+Django>=5.1
+djangorestframework
+django-cors-headers
+gunicorn
+python-dotenv
+whitenoise
+torch
+torchvision
+numpy
+opencv-python-headless
+Pillow

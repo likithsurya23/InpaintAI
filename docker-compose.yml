@@ -1,0 +1,44 @@
+services:
+  backend:
+    image: inpaint_ai_backend
+    build:
+      context: ./img_backend
+      dockerfile: Dockerfile
+    container_name: inpaint_ai_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=False
+      - ALLOWED_HOSTS=backend,localhost,127.0.0.1,inpaint_ai_backend
+      - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost
+      - SECRET_KEY=django-insecure-inpaint-ai-prod-key
+      - TORCH_DEVICE=cpu
+    volumes:
+      - ./img_backend/media:/app/media
+      - ./img_backend/db.sqlite3:/app/db.sqlite3
+      - ./img_backend/models:/app/models
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/health/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  frontend:
+    image: inpaint_ai_frontend
+    build:
+      context: ./img_frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=http://localhost:8000
+    container_name: inpaint_ai_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - BACKEND_URL=http://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy
