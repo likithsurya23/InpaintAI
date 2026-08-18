@@ -5,12 +5,15 @@ import multiprocessing
 bind = "0.0.0.0:8000"
 backlog = 2048
 
-# Worker processes
-workers = multiprocessing.cpu_count() * 2 + 1
-worker_class = "sync"
+# Worker processes (default to 1 worker + 2 threads to prevent OOM on 512MB RAM hosts)
+import os
+workers = int(os.getenv("WEB_CONCURRENCY", "1"))
+threads = int(os.getenv("GUNICORN_THREADS", "2"))
+worker_class = "gthread"
 worker_connections = 1000
-timeout = 30
+timeout = 120
 keepalive = 2
+
 
 # Logging
 accesslog = "-"

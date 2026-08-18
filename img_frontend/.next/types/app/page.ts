@@ -1,4 +1,4 @@
-// File: D:\Projects\Mtech-Projects\Image_Inpainting_Using_GAN\img_frontend\src\app\page.jsx
+// File: D:\Projects\InpaintAI\img_frontend\src\app\page.jsx
 import * as entry from '../../../src/app/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

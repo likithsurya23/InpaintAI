@@ -14,6 +14,9 @@ services:
       - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost
       - SECRET_KEY=django-insecure-inpaint-ai-prod-key
       - TORCH_DEVICE=cpu
+      - OMP_NUM_THREADS=1
+      - MKL_NUM_THREADS=1
+
     volumes:
       - ./img_backend/media:/app/media
       - ./img_backend/db.sqlite3:/app/db.sqlite3

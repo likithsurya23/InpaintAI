@@ -1,4 +1,5 @@
-# apps/ml/inference.py
+import gc
+import os
 import torch
 from torchvision import transforms
 from PIL import Image
@@ -6,14 +7,21 @@ from django.conf import settings
 
 from .generator_def import Generator
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# Limit PyTorch CPU thread pools to prevent excess memory allocation on shared cloud hosts
+torch.set_num_threads(1)
+
+device_setting = os.getenv("TORCH_DEVICE", "").lower()
+if device_setting == "cpu":
+    device = torch.device("cpu")
+else:
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 _generator = None
 IMG_SIZE = 256  # same as training
 
 
 def get_generator():
-                                                                                            
+
     global _generator
     if _generator is None:
         model = Generator(in_channels=4, out_channels=3, base_channels=64)
@@ -27,6 +35,7 @@ def get_generator():
         _generator = model
 
     return _generator
+
 
 
 _img_tf = transforms.Compose([
@@ -86,4 +95,5 @@ def inpaint(image: Image.Image, mask: Image.Image, iterations: int = 1) -> Image
 
     # After all iterations, convert final comp to PIL
     comp_img = transforms.ToPILImage()(current_img.cpu())
+    gc.collect()
     return comp_img

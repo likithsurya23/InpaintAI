@@ -1,3 +1,4 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
 Django>=5.1
 djangorestframework
 django-cors-headers
