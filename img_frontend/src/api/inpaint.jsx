@@ -1,7 +1,7 @@
 import axios from "axios"
 
 export const getApiUrl = () => {
-  if (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL) {
+  if (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL !== undefined) {
     return process.env.NEXT_PUBLIC_API_URL
   }
   return "http://127.0.0.1:8000"
@@ -24,8 +24,9 @@ export async function inpaintImage(originalImageDataUrl, maskDataUrl, iterations
     formData.append("iterations", iterations)
 
     // Call DRF REST API endpoint
+    const endpoint = API_URL ? `${API_URL}/api/inpaint/` : "/api/inpaint/"
     const response = await axios.post(
-      `${API_URL}/api/inpaint/`,
+      endpoint,
       formData,
       {
         headers: {
@@ -40,6 +41,7 @@ export async function inpaintImage(originalImageDataUrl, maskDataUrl, iterations
       const formatUrl = (url) => {
         if (!url) return null
         if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) return url
+        if (!API_URL) return url.startsWith("/") ? url : `/${url}`
         return `${API_URL}${url.startsWith("/") ? "" : "/"}${url}`
       }
 
@@ -71,8 +73,9 @@ export async function inpaintImage(originalImageDataUrl, maskDataUrl, iterations
   } catch (error) {
     console.error("Inpaint API error:", error)
 
-    if (error.message === "Network Error") {
-      throw new Error("Cannot reach backend (network/CORS). Is Django running on http://127.0.0.1:8000?")
+    if (error.message === "Network Error" || error.code === "ERR_NETWORK") {
+      const targetUrl = getApiUrl() || "http://127.0.0.1:8000"
+      throw new Error(`Cannot connect to backend server at ${targetUrl}. Please start Django using 'python manage.py runserver' or run 'docker-compose up'.`)
     }
 
     if (error.response && error.response.data) {
@@ -85,6 +88,7 @@ export async function inpaintImage(originalImageDataUrl, maskDataUrl, iterations
     throw error
   }
 }
+
 
 /**
  * REST API call to fetch inpainting history list
