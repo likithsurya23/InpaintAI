@@ -17,6 +17,19 @@ export const buildEndpointUrl = (path) => {
   return baseUrl ? `${baseUrl}${cleanPath}` : cleanPath
 }
 
+export const normalizeImageUrl = (url) => {
+  if (!url) return null
+  if (
+    url.startsWith("http://") ||
+    url.startsWith("https://") ||
+    url.startsWith("//") ||
+    url.startsWith("data:")
+  ) {
+    return url
+  }
+  return buildEndpointUrl(url)
+}
+
 /**
  * Execute inpainting request against DRF REST API endpoint
  */
@@ -46,15 +59,9 @@ export async function inpaintImage(originalImageDataUrl, maskDataUrl, iterations
     // Handle standard DRF JSON response
     const data = response.data
     if (data && typeof data === "object" && (data.result_image_url || data.result_image)) {
-      const formatUrl = (url) => {
-        if (!url) return null
-        if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) return url
-        return buildEndpointUrl(url)
-      }
-
-      const resultUrl = formatUrl(data.result_image_url || data.result_image)
-      const origUrl = formatUrl(data.original_image_url || data.original_image)
-      const maskUrl = formatUrl(data.mask_image_url || data.mask_image)
+      const resultUrl = normalizeImageUrl(data.result_image_url || data.result_image)
+      const origUrl = normalizeImageUrl(data.original_image_url || data.original_image)
+      const maskUrl = normalizeImageUrl(data.mask_image_url || data.mask_image)
 
       return {
         id: data.id,
@@ -102,12 +109,21 @@ export async function inpaintImage(originalImageDataUrl, maskDataUrl, iterations
 export async function fetchResultsHistory() {
   try {
     const response = await axios.get(buildEndpointUrl("/api/results/"))
-    return response.data
+    const data = response.data
+    const results = Array.isArray(data) ? data : (data.results || [])
+    return results.map(item => ({
+      ...item,
+      original_image: normalizeImageUrl(item.original_image_url || item.original_image),
+      mask_image: normalizeImageUrl(item.mask_image_url || item.mask_image),
+      result_image: normalizeImageUrl(item.result_image_url || item.result_image),
+    }))
   } catch (error) {
     console.error("Failed to fetch results history:", error)
     return []
   }
 }
+
+
 
 /**
  * REST API call to delete a single result from history

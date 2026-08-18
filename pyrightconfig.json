@@ -1,5 +1,9 @@
 {
   "extraPaths": [
     "img_backend"
-  ]
+  ],
+  "reportMissingTypeStubs": false,
+  "reportMissingImports": false
 }
+
+

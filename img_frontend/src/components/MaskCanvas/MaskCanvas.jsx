@@ -137,7 +137,7 @@ const MaskCanvas = ({
 
   const updateMaskData = () => {
     const canvas = canvasRef.current
-    if (!canvas) return
+    if (!canvas || canvas.width === 0 || canvas.height === 0) return
 
     const maskCanvas = document.createElement('canvas')
     maskCanvas.width = canvas.width
@@ -229,7 +229,7 @@ const MaskCanvas = ({
         {/* Brush Size */}
         <div className="flex items-center gap-2 sm:gap-3">
           <label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">
-            Size: <span className="text-blue-600">{brushSize}px</span>
+            Size: <span className="text-blue-600 font-extrabold">{brushSize}px</span>
           </label>
           <input
             type="range"
@@ -238,9 +238,10 @@ const MaskCanvas = ({
             value={brushSize}
             onChange={(e) => setBrushSize(parseInt(e.target.value))}
             disabled={disabled || isLoading}
-            className="w-24 sm:w-32 h-2 sm:h-3 bg-slate-300 rounded-lg cursor-pointer accent-blue-600"
+            className="w-24 sm:w-32 h-2 sm:h-2.5 bg-slate-300 dark:bg-slate-700 rounded-lg cursor-pointer appearance-auto accent-blue-600"
           />
         </div>
+
 
         {/* Clear Button */}
         <button

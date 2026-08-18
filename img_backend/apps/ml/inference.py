@@ -3,7 +3,8 @@ import os
 import torch
 from torchvision import transforms
 from PIL import Image
-from django.conf import settings
+from django.conf import settings  # type: ignore
+
 
 from .generator_def import Generator
 
@@ -67,9 +68,10 @@ def inpaint(image: Image.Image, mask: Image.Image, iterations: int = 1) -> Image
     G = get_generator()
 
     # Clamp iterations between 1 and 5 just in case
-    iterations = max(1, min(5, int(iterations)))
+    iterations = max(1, min(5, iterations))
 
     for i in range(iterations):
+
         # Mask current image
         masked_img = current_img * mask_3           # [3,H,W]
 
