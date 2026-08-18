@@ -1,10 +1,20 @@
 import axios from "axios"
 
 export const getApiUrl = () => {
+  let url = ""
   if (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL !== undefined) {
-    return process.env.NEXT_PUBLIC_API_URL
+    url = process.env.NEXT_PUBLIC_API_URL
+  } else {
+    url = "http://127.0.0.1:8000"
   }
-  return "http://127.0.0.1:8000"
+  // Trim trailing slashes to avoid double-slash path concatenation (e.g., //api/inpaint/)
+  return url ? url.replace(/\/+$/, "") : ""
+}
+
+export const buildEndpointUrl = (path) => {
+  const baseUrl = getApiUrl()
+  const cleanPath = path.startsWith("/") ? path : `/${path}`
+  return baseUrl ? `${baseUrl}${cleanPath}` : cleanPath
 }
 
 /**
@@ -12,8 +22,6 @@ export const getApiUrl = () => {
  */
 export async function inpaintImage(originalImageDataUrl, maskDataUrl, iterations) {
   try {
-    const API_URL = getApiUrl()
-
     // Convert data URLs to Blobs for multipart form submission
     const imageBlob = await (await fetch(originalImageDataUrl)).blob()
     const maskBlob = await (await fetch(maskDataUrl)).blob()
@@ -24,7 +32,7 @@ export async function inpaintImage(originalImageDataUrl, maskDataUrl, iterations
     formData.append("iterations", iterations)
 
     // Call DRF REST API endpoint
-    const endpoint = API_URL ? `${API_URL}/api/inpaint/` : "/api/inpaint/"
+    const endpoint = buildEndpointUrl("/api/inpaint/")
     const response = await axios.post(
       endpoint,
       formData,
@@ -41,8 +49,7 @@ export async function inpaintImage(originalImageDataUrl, maskDataUrl, iterations
       const formatUrl = (url) => {
         if (!url) return null
         if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) return url
-        if (!API_URL) return url.startsWith("/") ? url : `/${url}`
-        return `${API_URL}${url.startsWith("/") ? "" : "/"}${url}`
+        return buildEndpointUrl(url)
       }
 
       const resultUrl = formatUrl(data.result_image_url || data.result_image)
@@ -89,14 +96,12 @@ export async function inpaintImage(originalImageDataUrl, maskDataUrl, iterations
   }
 }
 
-
 /**
  * REST API call to fetch inpainting history list
  */
 export async function fetchResultsHistory() {
   try {
-    const API_URL = getApiUrl()
-    const response = await axios.get(`${API_URL}/api/results/`)
+    const response = await axios.get(buildEndpointUrl("/api/results/"))
     return response.data
   } catch (error) {
     console.error("Failed to fetch results history:", error)
@@ -109,8 +114,7 @@ export async function fetchResultsHistory() {
  */
 export async function deleteResultHistory(id) {
   try {
-    const API_URL = getApiUrl()
-    await axios.delete(`${API_URL}/api/results/${id}/`)
+    await axios.delete(buildEndpointUrl(`/api/results/${id}/`))
     return true
   } catch (error) {
     console.error(`Failed to delete result ${id}:`, error)
@@ -123,8 +127,7 @@ export async function deleteResultHistory(id) {
  */
 export async function clearResultsHistory() {
   try {
-    const API_URL = getApiUrl()
-    await axios.delete(`${API_URL}/api/results/clear/`)
+    await axios.delete(buildEndpointUrl("/api/results/clear/"))
     return true
   } catch (error) {
     console.error("Failed to clear results history:", error)
@@ -137,11 +140,11 @@ export async function clearResultsHistory() {
  */
 export async function fetchHealthStatus() {
   try {
-    const API_URL = getApiUrl()
-    const response = await axios.get(`${API_URL}/api/health/`)
+    const response = await axios.get(buildEndpointUrl("/api/health/"))
     return response.data
   } catch (error) {
     console.error("Backend health check failed:", error)
     return { status: "error", error: error.message }
   }
 }
+
