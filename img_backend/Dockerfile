@@ -34,6 +34,6 @@ RUN python manage.py collectstatic --noinput
 EXPOSE 8000
 
 # Run Django migrations and start Gunicorn (1 worker + 2 threads optimized for 512MB RAM containers)
-CMD ["sh", "-c", "python manage.py migrate --noinput && gunicorn img_backend.wsgi:application --bind 0.0.0.0:8000 --workers 1 --threads 2 --timeout 120"]
+CMD ["sh", "-c", "python manage.py migrate --noinput && gunicorn img_backend.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 1 --threads 2 --timeout 120"]
 
 

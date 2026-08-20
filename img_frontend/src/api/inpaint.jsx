@@ -52,7 +52,8 @@ export async function inpaintImage(originalImageDataUrl, maskDataUrl, iterations
       {
         headers: {
           "Accept": "application/json, image/png",
-        }
+        },
+        timeout: 120000, // 2-minute timeout to allow Render free tier cold-starts
       }
     )
 
@@ -87,9 +88,17 @@ export async function inpaintImage(originalImageDataUrl, maskDataUrl, iterations
   } catch (error) {
     console.error("Inpaint API error:", error)
 
-    if (error.message === "Network Error" || error.code === "ERR_NETWORK") {
+    if (error.message === "Network Error" || error.code === "ERR_NETWORK" || error.code === "ECONNABORTED") {
       const targetUrl = getApiUrl() || "http://127.0.0.1:8000"
-      throw new Error(`Cannot connect to backend server at ${targetUrl}. Please start Django using 'python manage.py runserver' or run 'docker-compose up'.`)
+      const isCloudHost = targetUrl.includes("onrender.com") || targetUrl.includes("vercel.app") || (!targetUrl.includes("localhost") && !targetUrl.includes("127.0.0.1"))
+
+      if (isCloudHost) {
+        throw new Error(
+          `Cannot connect to backend server at ${targetUrl}. If using Render free hosting, the service may be spinning up from sleep (~45-60s cold start). Please wait a moment and try again.`
+        )
+      } else {
+        throw new Error(`Cannot connect to backend server at ${targetUrl}. Please start Django using 'python manage.py runserver' or run 'docker-compose up'.`)
+      }
     }
 
     if (error.response && error.response.data) {
@@ -108,7 +117,7 @@ export async function inpaintImage(originalImageDataUrl, maskDataUrl, iterations
  */
 export async function fetchResultsHistory() {
   try {
-    const response = await axios.get(buildEndpointUrl("/api/results/"))
+    const response = await axios.get(buildEndpointUrl("/api/results/"), { timeout: 15000 })
     const data = response.data
     const results = Array.isArray(data) ? data : (data.results || [])
     return results.map(item => ({
@@ -130,7 +139,7 @@ export async function fetchResultsHistory() {
  */
 export async function deleteResultHistory(id) {
   try {
-    await axios.delete(buildEndpointUrl(`/api/results/${id}/`))
+    await axios.delete(buildEndpointUrl(`/api/results/${id}/`), { timeout: 15000 })
     return true
   } catch (error) {
     console.error(`Failed to delete result ${id}:`, error)
@@ -143,7 +152,7 @@ export async function deleteResultHistory(id) {
  */
 export async function clearResultsHistory() {
   try {
-    await axios.delete(buildEndpointUrl("/api/results/clear/"))
+    await axios.delete(buildEndpointUrl("/api/results/clear/"), { timeout: 15000 })
     return true
   } catch (error) {
     console.error("Failed to clear results history:", error)
@@ -156,7 +165,7 @@ export async function clearResultsHistory() {
  */
 export async function fetchHealthStatus() {
   try {
-    const response = await axios.get(buildEndpointUrl("/api/health/"))
+    const response = await axios.get(buildEndpointUrl("/api/health/"), { timeout: 30000 })
     return response.data
   } catch (error) {
     console.error("Backend health check failed:", error)

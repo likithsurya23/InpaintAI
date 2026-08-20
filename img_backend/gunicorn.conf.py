@@ -1,12 +1,13 @@
 # Gunicorn configuration file for production deployment
 import multiprocessing
 
+import os
+
 # Server socket
-bind = "0.0.0.0:8000"
+bind = f"0.0.0.0:{os.getenv('PORT', '8000')}"
 backlog = 2048
 
 # Worker processes (default to 1 worker + 2 threads to prevent OOM on 512MB RAM hosts)
-import os
 workers = int(os.getenv("WEB_CONCURRENCY", "1"))
 threads = int(os.getenv("GUNICORN_THREADS", "2"))
 worker_class = "gthread"

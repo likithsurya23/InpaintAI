@@ -15,12 +15,12 @@ venv/
 env/
 ENV/
 
-# ML models (CRITICAL)
-*.pth
+# ML models
 *.pt
 *.ckpt
 *.h5
 *.onnx
+!models/generator_final.pth
 
 # Data & training
 Train/
