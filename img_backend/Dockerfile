@@ -9,31 +9,33 @@ ENV TORCH_DEVICE=cpu
 
 WORKDIR /app
 
-# Install system dependencies (required for OpenCV / PyTorch / Health check)
+# System dependencies
 RUN apt-get update && apt-get install -y \
     libgl1 \
     libglib2.0-0 \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies (install CPU-only PyTorch to minimize image size and RAM usage)
+# Install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu \
-    && pip install --no-cache-dir -r requirements.txt
 
-# Create media and static directories
-RUN mkdir -p /app/media /app/staticfiles
+RUN pip install --no-cache-dir \
+    torch torchvision \
+    --index-url https://download.pytorch.org/whl/cpu
 
-# Copy project files
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy project
 COPY . .
 
-# Collect static files for WhiteNoise
+# Create required directories
+RUN mkdir -p /app/media /app/staticfiles
+
+# Collect static files
 RUN python manage.py collectstatic --noinput
 
-# Expose Django REST API port
-EXPOSE 8000
+# Render uses the PORT environment variable
+EXPOSE 10000
 
-# Run Django migrations and start Gunicorn (1 worker + 2 threads optimized for 512MB RAM containers)
-CMD ["sh", "-c", "python manage.py migrate --noinput && gunicorn img_backend.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 1 --threads 2 --timeout 120"]
-
-
+# Run migrations and start Gunicorn
+CMD ["sh", "-c", "python manage.py migrate --noinput && gunicorn img_backend.wsgi:application --bind 0.0.0.0:${PORT:-10000} --workers 1 --threads 2 --timeout 120"]

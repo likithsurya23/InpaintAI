@@ -2,42 +2,22 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-# ============================================================
-# BASE CONFIGURATION
-# ============================================================
-
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Load .env locally
 load_dotenv()
-
-# ============================================================
-# SECURITY
-# ============================================================
-
-SECRET_KEY = os.getenv(
-    "SECRET_KEY",
-    "django-insecure-change-this-in-production"
-)
 
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "*"]
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY environment variable is required at startup.")
 
-# Add custom hosts from environment variable
-extra_hosts = os.getenv("ALLOWED_HOSTS", "")
-
-if extra_hosts:
-    ALLOWED_HOSTS.extend(
-        host.strip()
-        for host in extra_hosts.split(",")
-        if host.strip() and host.strip() not in ALLOWED_HOSTS
-    )
-
-
-# ============================================================
-# APPLICATIONS
-# ============================================================
+raw_allowed_hosts = os.getenv("ALLOWED_HOSTS", "inpaintai-1.onrender.com,localhost,127.0.0.1")
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in raw_allowed_hosts.split(",")
+    if host.strip() and host.strip() != "*"
+]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -46,28 +26,15 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-
-    # Third-party
     "corsheaders",
     "rest_framework",
-
-    # Local apps
     "apps",
 ]
 
-# ============================================================
-# MIDDLEWARE
-# ============================================================
-
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-
-    # CORS must be before CommonMiddleware
     "corsheaders.middleware.CorsMiddleware",
-
-    # Static files
     "whitenoise.middleware.WhiteNoiseMiddleware",
-
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -76,17 +43,9 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-# ============================================================
-# URL / WSGI
-# ============================================================
-
 ROOT_URLCONF = "img_backend.urls"
 
 WSGI_APPLICATION = "img_backend.wsgi.application"
-
-# ============================================================
-# TEMPLATES
-# ============================================================
 
 TEMPLATES = [
     {
@@ -104,20 +63,24 @@ TEMPLATES = [
     },
 ]
 
-# ============================================================
-# DATABASE
-# ============================================================
+db_url = os.getenv("DATABASE_URL")
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+if db_url:
+    import dj_database_url  # type: ignore
+    DATABASES = {
+        "default": dj_database_url.config(
+            default=db_url,
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
     }
-}
-
-# ============================================================
-# DJANGO REST FRAMEWORK
-# ============================================================
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 REST_FRAMEWORK = {
     "DEFAULT_PARSER_CLASSES": [
@@ -134,23 +97,26 @@ REST_FRAMEWORK = {
     ],
 }
 
-# ============================================================
-# CORS
-# ============================================================
+default_cors_origins = [
+    "https://inpaint-ai.vercel.app",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
 
-cors_origins = os.getenv("CORS_ALLOWED_ORIGINS", "")
+cors_origins_env = os.getenv("CORS_ALLOWED_ORIGINS", "").strip()
 
-if cors_origins:
-    CORS_ALLOWED_ORIGINS = [
-        origin.strip()
-        for origin in cors_origins.split(",")
-        if origin.strip()
-    ]
-    CORS_ALLOW_ALL_ORIGINS = False
+if cors_origins_env:
+    CORS_ALLOWED_ORIGINS = []
+    for origin in cors_origins_env.split(","):
+        normalized = origin.strip().rstrip("/")
+        if normalized and normalized not in CORS_ALLOWED_ORIGINS:
+            CORS_ALLOWED_ORIGINS.append(normalized)
 else:
-    # Useful for initial Render/Vercel testing
-    CORS_ALLOW_ALL_ORIGINS = True
+    CORS_ALLOWED_ORIGINS = [origin.rstrip("/") for origin in default_cors_origins]
 
+CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOW_HEADERS = [
@@ -165,11 +131,9 @@ CORS_ALLOW_HEADERS = [
     "x-requested-with",
 ]
 
-# ============================================================
-# CSRF
-# ============================================================
-
 CSRF_TRUSTED_ORIGINS = [
+    "https://inpaint-ai.vercel.app",
+    "https://inpaintai-1.onrender.com",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost:5173",
@@ -181,38 +145,34 @@ CSRF_TRUSTED_ORIGINS = [
 csrf_origins = os.getenv("CSRF_TRUSTED_ORIGINS", "")
 
 if csrf_origins:
-    CSRF_TRUSTED_ORIGINS.extend(
-        origin.strip()
-        for origin in csrf_origins.split(",")
-        if origin.strip()
-        and origin.strip() not in CSRF_TRUSTED_ORIGINS
-    )
+    for origin in csrf_origins.split(","):
+        origin = origin.strip().rstrip("/")
+        if origin and origin not in CSRF_TRUSTED_ORIGINS:
+            CSRF_TRUSTED_ORIGINS.append(origin)
 
+SECURE_PROXY_SSL_HEADER = (
+    "HTTP_X_FORWARDED_PROTO",
+    "https",
+)
 
-# ============================================================
-# STATIC FILES
-# ============================================================
-
-STATIC_URL = os.getenv("STATIC_URL", "/static/")
+STATIC_URL = "/static/"
 
 STATIC_ROOT = BASE_DIR / os.getenv(
     "STATIC_ROOT",
     "staticfiles"
 )
 
-# WhiteNoise compressed static files
 STORAGES = {
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
     },
     "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        "BACKEND": (
+            "whitenoise.storage."
+            "CompressedManifestStaticFilesStorage"
+        ),
     },
 }
-
-# ============================================================
-# MEDIA FILES
-# ============================================================
 
 MEDIA_URL = os.getenv(
     "MEDIA_URL",
@@ -224,10 +184,6 @@ MEDIA_ROOT = BASE_DIR / os.getenv(
     "media"
 )
 
-# ============================================================
-# ML MODEL
-# ============================================================
-
 GENERATOR_WEIGHTS = (
     BASE_DIR
     / os.getenv(
@@ -235,10 +191,6 @@ GENERATOR_WEIGHTS = (
         "models/generator_final.pth"
     )
 )
-
-# ============================================================
-# PASSWORD VALIDATION
-# ============================================================
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -267,19 +219,12 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-# ============================================================
-# INTERNATIONALIZATION
-# ============================================================
-
 LANGUAGE_CODE = "en-us"
 
 TIME_ZONE = "UTC"
 
 USE_I18N = True
-USE_TZ = True
 
-# ============================================================
-# DEFAULT PRIMARY KEY
-# ============================================================
+USE_TZ = True
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

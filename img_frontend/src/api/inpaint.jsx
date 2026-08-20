@@ -90,14 +90,14 @@ export async function inpaintImage(originalImageDataUrl, maskDataUrl, iterations
 
     if (error.message === "Network Error" || error.code === "ERR_NETWORK" || error.code === "ECONNABORTED") {
       const targetUrl = getApiUrl() || "http://127.0.0.1:8000"
-      const isCloudHost = targetUrl.includes("onrender.com") || targetUrl.includes("vercel.app") || (!targetUrl.includes("localhost") && !targetUrl.includes("127.0.0.1"))
+      const isRender = targetUrl.includes("onrender.com")
 
-      if (isCloudHost) {
+      if (isRender) {
         throw new Error(
           `Cannot connect to backend server at ${targetUrl}. If using Render free hosting, the service may be spinning up from sleep (~45-60s cold start). Please wait a moment and try again.`
         )
       } else {
-        throw new Error(`Cannot connect to backend server at ${targetUrl}. Please start Django using 'python manage.py runserver' or run 'docker-compose up'.`)
+        throw new Error(`Cannot connect to backend server at ${targetUrl}. Please check if the backend server is running.`)
       }
     }
 
