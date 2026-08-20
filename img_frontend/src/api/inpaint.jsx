@@ -33,82 +33,104 @@ export const normalizeImageUrl = (url) => {
 /**
  * Execute inpainting request against DRF REST API endpoint
  */
-export async function inpaintImage(originalImageDataUrl, maskDataUrl, iterations) {
-  try {
-    // Convert data URLs to Blobs for multipart form submission
-    const imageBlob = await (await fetch(originalImageDataUrl)).blob()
-    const maskBlob = await (await fetch(maskDataUrl)).blob()
+export async function inpaintImage(originalImageDataUrl, maskDataUrl, iterations, onProgressStatus) {
+  const maxRetries = 3
+  let attempt = 0
 
-    const formData = new FormData()
-    formData.append("image", imageBlob, "image.png")
-    formData.append("mask", maskBlob, "mask.png")
-    formData.append("iterations", iterations)
-
-    // Call DRF REST API endpoint
-    const endpoint = buildEndpointUrl("/api/inpaint/")
-    const response = await axios.post(
-      endpoint,
-      formData,
-      {
-        headers: {
-          "Accept": "application/json, image/png",
-        },
-        timeout: 120000, // 2-minute timeout to allow Render free tier cold-starts
+  while (attempt < maxRetries) {
+    try {
+      attempt++
+      if (attempt > 1 && onProgressStatus) {
+        onProgressStatus(`Server waking up (~45s cold start)... Connection attempt ${attempt} of ${maxRetries}`)
       }
-    )
 
-    // Handle standard DRF JSON response
-    const data = response.data
-    if (data && typeof data === "object" && (data.result_image_url || data.result_image)) {
-      const resultUrl = normalizeImageUrl(data.result_image_url || data.result_image)
-      const origUrl = normalizeImageUrl(data.original_image_url || data.original_image)
-      const maskUrl = normalizeImageUrl(data.mask_image_url || data.mask_image)
+      // Convert data URLs to Blobs for multipart form submission
+      const imageBlob = await (await fetch(originalImageDataUrl)).blob()
+      const maskBlob = await (await fetch(maskDataUrl)).blob()
 
-      return {
-        id: data.id,
-        result_image: resultUrl,
-        original_image: origUrl,
-        mask_image: maskUrl,
-        job_id: data.id ? String(data.id) : Date.now().toString(),
-        created_at: data.created_at || new Date().toISOString(),
-        iterations: data.iterations || iterations
+      const formData = new FormData()
+      formData.append("image", imageBlob, "image.png")
+      formData.append("mask", maskBlob, "mask.png")
+      formData.append("iterations", iterations)
+
+      // Call DRF REST API endpoint
+      const endpoint = buildEndpointUrl("/api/inpaint/")
+      const response = await axios.post(
+        endpoint,
+        formData,
+        {
+          headers: {
+            "Accept": "application/json, image/png",
+          },
+          timeout: 120000, // 2-minute timeout to allow Render free tier cold-starts
+        }
+      )
+
+      // Handle standard DRF JSON response
+      const data = response.data
+      if (data && typeof data === "object" && (data.result_image_url || data.result_image)) {
+        const resultUrl = normalizeImageUrl(data.result_image_url || data.result_image)
+        const origUrl = normalizeImageUrl(data.original_image_url || data.original_image)
+        const maskUrl = normalizeImageUrl(data.mask_image_url || data.mask_image)
+
+        return {
+          id: data.id,
+          result_image: resultUrl,
+          original_image: origUrl,
+          mask_image: maskUrl,
+          job_id: data.id ? String(data.id) : Date.now().toString(),
+          created_at: data.created_at || new Date().toISOString(),
+          iterations: data.iterations || iterations
+        }
       }
-    }
 
-    // Handle Blob response if returned directly
-    if (response.data instanceof Blob) {
-      const resultUrl = URL.createObjectURL(response.data)
-      return {
-        result_image: resultUrl,
-        job_id: Date.now().toString(),
+      // Handle Blob response if returned directly
+      if (response.data instanceof Blob) {
+        const resultUrl = URL.createObjectURL(response.data)
+        return {
+          result_image: resultUrl,
+          job_id: Date.now().toString(),
+        }
       }
-    }
 
-    throw new Error("Unexpected response format from backend API")
-  } catch (error) {
-    console.error("Inpaint API error:", error)
+      throw new Error("Unexpected response format from backend API")
+    } catch (error) {
+      console.error(`Inpaint API attempt ${attempt} failed:`, error)
 
-    if (error.message === "Network Error" || error.code === "ERR_NETWORK" || error.code === "ECONNABORTED") {
-      const targetUrl = getApiUrl() || "http://127.0.0.1:8000"
-      const isRender = targetUrl.includes("onrender.com")
+      const isNetworkErr = error.message === "Network Error" || error.code === "ERR_NETWORK" || error.code === "ECONNABORTED"
 
-      if (isRender) {
-        throw new Error(
-          `Cannot connect to backend server at ${targetUrl}. If using Render free hosting, the service may be spinning up from sleep (~45-60s cold start). Please wait a moment and try again.`
-        )
-      } else {
-        throw new Error(`Cannot connect to backend server at ${targetUrl}. Please check if the backend server is running.`)
+      if (isNetworkErr && attempt < maxRetries) {
+        const targetUrl = getApiUrl() || "http://127.0.0.1:8000"
+        const isRender = targetUrl.includes("onrender.com")
+        if (isRender && onProgressStatus) {
+          onProgressStatus(`Render server is waking up from sleep. Retrying connection in 5s... (Attempt ${attempt}/${maxRetries})`)
+        }
+        await new Promise((res) => setTimeout(res, 5000))
+        continue
       }
-    }
 
-    if (error.response && error.response.data) {
-      const serverMsg = typeof error.response.data === "object"
-        ? JSON.stringify(error.response.data)
-        : error.response.data
-      throw new Error(`Backend error (${error.response.status}): ${serverMsg}`)
-    }
+      if (isNetworkErr) {
+        const targetUrl = getApiUrl() || "http://127.0.0.1:8000"
+        const isRender = targetUrl.includes("onrender.com")
 
-    throw error
+        if (isRender) {
+          throw new Error(
+            `Cannot connect to backend server at ${targetUrl}. Render free hosting is currently warming up (~45-60s cold start). Please wait 10 seconds and try again.`
+          )
+        } else {
+          throw new Error(`Cannot connect to backend server at ${targetUrl}. Please check if the backend server is running.`)
+        }
+      }
+
+      if (error.response && error.response.data) {
+        const serverMsg = typeof error.response.data === "object"
+          ? JSON.stringify(error.response.data)
+          : error.response.data
+        throw new Error(`Backend error (${error.response.status}): ${serverMsg}`)
+      }
+
+      throw error
+    }
   }
 }
 

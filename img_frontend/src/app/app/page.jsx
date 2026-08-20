@@ -8,7 +8,7 @@ import ResultViewer from '../../components/ResultViewer/ResultViewer'
 import IterationControls from '../../components/IterationControls/IterationControls'
 import HistorySidebar from '../../components/HistorySidebar/HistorySidebar'
 import { Button } from '../../components/UI'
-import { inpaintImage, fetchResultsHistory, clearResultsHistory } from '../../api/inpaint'
+import { inpaintImage, fetchResultsHistory, clearResultsHistory, fetchHealthStatus } from '../../api/inpaint'
 import { theme } from '../../theme'
 import { useTheme } from '../../components/context/ThemeContext'
 
@@ -19,6 +19,9 @@ export default function StudioApp() {
   const [maskData, setMaskData] = useState(null)
   const [resultImage, setResultImage] = useState(null)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [statusMessage, setStatusMessage] = useState(null)
+  const [errorMessage, setErrorMessage] = useState(null)
+  const [backendState, setBackendState] = useState('checking') // 'checking' | 'online' | 'warming'
   const [jobId, setJobId] = useState(null)
   const [history, setHistory] = useState([])
   const [iterations, setIterations] = useState(2)
@@ -26,9 +29,24 @@ export default function StudioApp() {
   const [mobileTab, setMobileTab] = useState('studio')
 
   useEffect(() => {
+    // Ping health endpoint on mount to wake up Render backend early if sleeping
+    const checkBackend = async () => {
+      try {
+        const res = await fetchHealthStatus()
+        if (res && res.status === 'ok') {
+          setBackendState('online')
+        } else {
+          setBackendState('warming')
+        }
+      } catch {
+        setBackendState('warming')
+      }
+    }
+
     const loadHistoryFromApi = async () => {
       const data = await fetchResultsHistory()
       if (Array.isArray(data) && data.length > 0) {
+        setBackendState('online')
         const formattedHistory = data.map(item => ({
           id: item.id,
           original: item.original_image_url || item.original_image,
@@ -40,10 +58,13 @@ export default function StudioApp() {
         setHistory(formattedHistory)
       }
     }
+
+    checkBackend()
     loadHistoryFromApi()
   }, [])
 
   const handleImageUpload = (file) => {
+    setErrorMessage(null)
     const reader = new FileReader()
     reader.onload = (e) => {
       setOriginalImage(e.target.result)
@@ -60,16 +81,24 @@ export default function StudioApp() {
 
   const handleInpaint = async () => {
     if (!originalImage || !maskData) {
-      alert('Please upload an image and draw a mask first')
+      setErrorMessage('Please upload an image and draw a mask first.')
       return
     }
 
     setIsProcessing(true)
+    setErrorMessage(null)
+    setStatusMessage('Processing image...')
     setCurrentStep(4)
     try {
-      const response = await inpaintImage(originalImage, maskData, iterations)
+      const response = await inpaintImage(
+        originalImage,
+        maskData,
+        iterations,
+        (msg) => setStatusMessage(msg)
+      )
       setResultImage(response.result_image)
       setJobId(response.job_id)
+      setBackendState('online')
 
       const historyItem = {
         id: response.job_id || Date.now(),
@@ -83,10 +112,11 @@ export default function StudioApp() {
       setHistory(prev => [historyItem, ...prev])
     } catch (error) {
       console.error('Inpainting failed:', error)
-      alert(error.message || 'Inpainting failed. Please try again.')
+      setErrorMessage(error.message || 'Inpainting failed. Please try again.')
       setCurrentStep(3)
     } finally {
       setIsProcessing(false)
+      setStatusMessage(null)
     }
   }
 
@@ -113,6 +143,7 @@ export default function StudioApp() {
     setOriginalImage(null)
     setMaskData(null)
     setResultImage(null)
+    setErrorMessage(null)
     setCurrentStep(1)
   }
 
@@ -143,6 +174,16 @@ export default function StudioApp() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {/* Backend Health Badge */}
+              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-full text-xs font-medium border border-zinc-200 dark:border-zinc-700">
+                <span className={`w-2 h-2 rounded-full ${
+                  backendState === 'online' ? 'bg-emerald-500 animate-pulse' :
+                  backendState === 'warming' ? 'bg-amber-500 animate-ping' : 'bg-blue-500 animate-pulse'
+                }`} />
+                <span className="text-zinc-600 dark:text-zinc-300">
+                  {backendState === 'online' ? 'Backend Ready' : 'Backend Starting...'}
+                </span>
+              </div>
               {/* Theme Toggle Button */}
               <button
                 onClick={toggleTheme}
@@ -227,6 +268,30 @@ export default function StudioApp() {
                 {/* Content Area */}
                 <div className="flex-1 overflow-y-auto p-3 sm:p-4 custom-scrollbar">
                   <div className="h-full flex flex-col items-center justify-center w-full">
+
+                    {/* Error Banner */}
+                    {errorMessage && (
+                      <div className="w-full max-w-2xl mb-4 p-4 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start justify-between gap-3 text-red-600 dark:text-red-400 text-xs sm:text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">⚠️</span>
+                          <span>{errorMessage}</span>
+                        </div>
+                        <button
+                          onClick={() => setErrorMessage(null)}
+                          className="text-red-500 hover:text-red-700 font-bold text-base leading-none"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Progress / Status Banner */}
+                    {statusMessage && (
+                      <div className="w-full max-w-2xl mb-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl flex items-center gap-3 text-blue-600 dark:text-blue-400 text-xs sm:text-sm animate-pulse">
+                        <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                        <span>{statusMessage}</span>
+                      </div>
+                    )}
 
                     {/* Step 1: Upload */}
                     {currentStep === 1 && (
