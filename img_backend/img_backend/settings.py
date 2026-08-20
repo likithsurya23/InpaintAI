@@ -1,23 +1,37 @@
+
 import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-
+# Load environment variables from .env file
 load_dotenv()
 
-DEBUG = os.getenv("DEBUG", "False").lower() == "true"
+# Build paths inside the project like this: BASE_DIR / 'subdir'.
+BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.getenv("SECRET_KEY")
-if not SECRET_KEY:
-    raise ValueError("SECRET_KEY environment variable is required at startup.")
+# Model paths
+GENERATOR_WEIGHTS = BASE_DIR / os.getenv("GENERATOR_WEIGHTS_PATH", "models/generator_final.pth")
 
-raw_allowed_hosts = os.getenv("ALLOWED_HOSTS", "inpaintai-1.onrender.com,localhost,127.0.0.1")
-ALLOWED_HOSTS = [
-    host.strip()
-    for host in raw_allowed_hosts.split(",")
-    if host.strip() and host.strip() != "*"
-]
+# Media files configuration
+MEDIA_URL = os.getenv("MEDIA_URL", "/media/")
+MEDIA_ROOT = BASE_DIR / os.getenv("MEDIA_ROOT", "media")
+
+# Quick-start development settings - unsuitable for production
+# See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
+
+# SECURITY WARNING: keep the secret key used in production secret!
+SECRET_KEY = os.getenv(
+    "SECRET_KEY",
+    "django-insecure-g)^%%9#d4!v0i=fhthdwuw*g=uwp&=b2tk)pmb201%zc0^==u0"
+)
+
+# SECURITY WARNING: don't run with debug turned on in production!
+DEBUG = os.getenv("DEBUG", "True") == "True"
+
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "").split(",") if os.getenv("ALLOWED_HOSTS") else []
+
+
+# Application definition
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -33,9 +47,9 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    "corsheaders.middleware.CorsMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # Add WhiteNoise for static files
     "django.contrib.sessions.middleware.SessionMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -43,9 +57,15 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = "img_backend.urls"
+# CORS Configuration
+# In development, allow all origins. In production, specify allowed origins
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True
+else:
+    CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", "").split(",") if os.getenv("CORS_ALLOWED_ORIGINS") else []
+    CORS_ALLOW_ALL_ORIGINS = False
 
-WSGI_APPLICATION = "img_backend.wsgi.application"
+ROOT_URLCONF = "img_backend.urls"
 
 TEMPLATES = [
     {
@@ -63,161 +83,41 @@ TEMPLATES = [
     },
 ]
 
-db_url = os.getenv("DATABASE_URL")
+WSGI_APPLICATION = "img_backend.wsgi.application"
 
-if db_url:
-    import dj_database_url  # type: ignore
-    DATABASES = {
-        "default": dj_database_url.config(
-            default=db_url,
-            conn_max_age=600,
-            conn_health_checks=True,
-        )
-    }
-else:
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
-        }
-    }
 
-REST_FRAMEWORK = {
-    "DEFAULT_PARSER_CLASSES": [
-        "rest_framework.parsers.JSONParser",
-        "rest_framework.parsers.FormParser",
-        "rest_framework.parsers.MultiPartParser",
-    ],
-    "DEFAULT_RENDERER_CLASSES": [
-        "rest_framework.renderers.JSONRenderer",
-        "rest_framework.renderers.BrowsableAPIRenderer",
-    ],
-    "DEFAULT_PERMISSION_CLASSES": [
-        "rest_framework.permissions.AllowAny",
-    ],
-}
+# Database
+# https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-default_cors_origins = [
-    "https://inpaint-ai.vercel.app",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-]
-
-cors_origins_env = os.getenv("CORS_ALLOWED_ORIGINS", "").strip()
-
-if cors_origins_env:
-    CORS_ALLOWED_ORIGINS = []
-    for origin in cors_origins_env.split(","):
-        normalized = origin.strip().rstrip("/")
-        if normalized and normalized not in CORS_ALLOWED_ORIGINS:
-            CORS_ALLOWED_ORIGINS.append(normalized)
-else:
-    CORS_ALLOWED_ORIGINS = [origin.rstrip("/") for origin in default_cors_origins]
-
-CORS_ALLOW_ALL_ORIGINS = False
-CORS_ALLOW_CREDENTIALS = True
-
-CORS_ALLOW_HEADERS = [
-    "accept",
-    "accept-encoding",
-    "authorization",
-    "content-type",
-    "dnt",
-    "origin",
-    "user-agent",
-    "x-csrftoken",
-    "x-requested-with",
-]
-
-CSRF_TRUSTED_ORIGINS = [
-    "https://inpaint-ai.vercel.app",
-    "https://inpaintai-1.onrender.com",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
-]
-
-csrf_origins = os.getenv("CSRF_TRUSTED_ORIGINS", "")
-
-if csrf_origins:
-    for origin in csrf_origins.split(","):
-        origin = origin.strip().rstrip("/")
-        if origin and origin not in CSRF_TRUSTED_ORIGINS:
-            CSRF_TRUSTED_ORIGINS.append(origin)
-
-SECURE_PROXY_SSL_HEADER = (
-    "HTTP_X_FORWARDED_PROTO",
-    "https",
-)
-
-STATIC_URL = "/static/"
-
-STATIC_ROOT = BASE_DIR / os.getenv(
-    "STATIC_ROOT",
-    "staticfiles"
-)
-
-STORAGES = {
+DATABASES = {
     "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
-    },
-    "staticfiles": {
-        "BACKEND": (
-            "whitenoise.storage."
-            "CompressedManifestStaticFilesStorage"
-        ),
-    },
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
+    }
 }
 
-MEDIA_URL = os.getenv(
-    "MEDIA_URL",
-    "/media/"
-)
 
-MEDIA_ROOT = BASE_DIR / os.getenv(
-    "MEDIA_ROOT",
-    "media"
-)
-
-GENERATOR_WEIGHTS = (
-    BASE_DIR
-    / os.getenv(
-        "GENERATOR_WEIGHTS_PATH",
-        "models/generator_final.pth"
-    )
-)
+# Password validation
+# https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        "NAME": (
-            "django.contrib.auth.password_validation."
-            "UserAttributeSimilarityValidator"
-        ),
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
     },
     {
-        "NAME": (
-            "django.contrib.auth.password_validation."
-            "MinimumLengthValidator"
-        ),
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
     },
     {
-        "NAME": (
-            "django.contrib.auth.password_validation."
-            "CommonPasswordValidator"
-        ),
+        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
     },
     {
-        "NAME": (
-            "django.contrib.auth.password_validation."
-            "NumericPasswordValidator"
-        ),
+        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
+
+
+# Internationalization
+# https://docs.djangoproject.com/en/5.1/topics/i18n/
 
 LANGUAGE_CODE = "en-us"
 
@@ -226,5 +126,15 @@ TIME_ZONE = "UTC"
 USE_I18N = True
 
 USE_TZ = True
+
+
+# Static files (CSS, JavaScript, Images)
+# https://docs.djangoproject.com/en/5.1/howto/static-files/
+
+STATIC_URL = os.getenv("STATIC_URL", "/static/")
+STATIC_ROOT = BASE_DIR / os.getenv("STATIC_ROOT", "staticfiles")
+
+# Default primary key field type
+# https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
