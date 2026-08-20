@@ -174,16 +174,6 @@ export default function StudioApp() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {/* Backend Health Badge */}
-              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-full text-xs font-medium border border-zinc-200 dark:border-zinc-700">
-                <span className={`w-2 h-2 rounded-full ${
-                  backendState === 'online' ? 'bg-emerald-500 animate-pulse' :
-                  backendState === 'warming' ? 'bg-amber-500 animate-ping' : 'bg-blue-500 animate-pulse'
-                }`} />
-                <span className="text-zinc-600 dark:text-zinc-300">
-                  {backendState === 'online' ? 'Backend Ready' : 'Backend Starting...'}
-                </span>
-              </div>
               {/* Theme Toggle Button */}
               <button
                 onClick={toggleTheme}
